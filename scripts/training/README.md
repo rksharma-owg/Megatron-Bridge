@@ -1,5 +1,8 @@
 # Training entry points
 
+For the optional all-Lustre direct-Enroot backend, see the
+[shared container backend guide](../common/README.md). Pyxis remains the default.
+
 Megatron Bridge training provides a small public Slurm launcher:
 
 ```bash
@@ -11,6 +14,12 @@ setup layer only owns resources, the container, explicitly forwarded environment
 Recipe selection, dataset construction, and ConfigContainer overrides are resolved inside the training environment.
 Without an active virtual environment, the shell entry point creates an isolated `nemo-run` environment rather than
 resolving the full GPU training dependency set on the login node.
+
+Submission returns immediately unless `--wait` is supplied. Waiting checks
+Slurm status every 60 seconds; `--poll-interval SECONDS` can increase that
+interval (minimum 60). Logs remain in the NeMo Run experiment directory, with
+no separate scheduler-querying log tailer or queue-start-time watcher. A
+monitoring error or interruption does not cancel the submitted job.
 
 `launch_with_nemo_run.py` and `launch_with_sbatch.sh` remain available for their existing specialized workflows; `train.sh` is the compact recipe-oriented path.
 
@@ -97,6 +106,9 @@ through configurable library recipes. Explicit benchmark dataset replacement rem
 
 Five legacy duplicate names resolve to the benchmark definition; their library workloads remain available through
 the corresponding generic recipe aliases. New recipe names should be unique across both packages.
+
+Benchmark recipe names that use the deprecated `vr200` hardware name resolve to the renamed `vrnvl72` recipe with a
+warning.
 
 Text recipes default to `llm_step`; all recipes infer their modality-specific forward step from the same registry.
 Pass `--step-func NAME` to override that selection. Common training,
@@ -331,8 +343,8 @@ populate the executor's `additional_parameters` and are not forwarded to the
 training command or its srun step.
 
 Use `-lmc FREQ`, `--peak-mem-clk FREQ`, or `--peak_mem_clk FREQ` to lock the GPU memory clock to a fixed frequency in
-MHz once per node before training. VR200 benchmark recipes default to `4752`; other recipes leave the memory clock
-unlocked. Pass `-lmc -1` to disable the VR200 default explicitly.
+MHz once per node before training. VRNVL72 benchmark recipes default to `4752`; other recipes leave the memory clock
+unlocked. Pass `-lmc -1` to disable the VRNVL72 default explicitly.
 
 The compact launcher does not add rank-command prefixes or infer target-specific
 allocation and NUMA policies. Configure those explicitly for the target.

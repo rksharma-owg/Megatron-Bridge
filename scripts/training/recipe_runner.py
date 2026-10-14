@@ -63,6 +63,7 @@ STEP_FUNCTIONS: dict[str, StepFunctionEntry] = {
     "nemotron_omni_step": ("megatron.bridge.training.nemotron_omni_step", "forward_step"),
     "flux_step": ("megatron.bridge.diffusion.models.flux.flux_step", "FluxForwardStep"),
     "wan_step": ("megatron.bridge.diffusion.models.wan.wan_step", "WanForwardStep"),
+    "bagel_step": ("megatron.bridge.models.bagel.bagel_step", "BagelForwardStep"),
 }
 
 STEP_MODALITIES = {
@@ -78,6 +79,7 @@ STEP_MODALITIES = {
     "nemotron_omni_step": "vlm",
     "flux_step": "diffusion",
     "wan_step": "diffusion",
+    "bagel_step": "omni",
 }
 
 TRAIN_FUNCTIONS: dict[str, TrainFunctionEntry] = {
@@ -231,7 +233,10 @@ def load_recipe(
     seq_length: int | None = None,
 ) -> ConfigContainer:
     """Load an exact benchmark recipe when exported, otherwise a library recipe."""
-    if resolved_benchmark_recipe_metadata(recipe_name) is not None:
+    benchmark_metadata = resolved_benchmark_recipe_metadata(recipe_name)
+    if benchmark_metadata is not None:
+        # The resolved name replaces a deprecated hardware name in the requested one.
+        recipe_name = benchmark_metadata.recipe_name
         config_builder = find_benchmark_recipe(recipe_name)
         package_name = "megatron.bridge.perf_recipes"
         recipe_kind = "benchmark"

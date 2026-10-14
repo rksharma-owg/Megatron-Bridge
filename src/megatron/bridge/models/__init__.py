@@ -13,8 +13,23 @@
 # limitations under the License.
 
 # Import model providers for easy access
+import importlib.util
+
+
+_BAGEL_EXPORTS = []
+if (
+    importlib.util.find_spec("megatron.core.models.bagel") is not None
+    and importlib.util.find_spec("megatron.core.models.bagel.bagel_mimo") is not None
+):
+    from megatron.bridge.models.bagel import BagelBridge, BagelConfig, BagelModelProvider
+
+    _BAGEL_EXPORTS = ["BagelBridge", "BagelConfig", "BagelModelProvider"]
+
 from megatron.bridge.models.bailing import (
     BailingMoeV2Bridge,
+)
+from megatron.bridge.models.bert import (
+    BertModelProvider,
 )
 from megatron.bridge.models.conversion.auto_bridge import AutoBridge
 from megatron.bridge.models.conversion.mapping_registry import MegatronMappingRegistry
@@ -29,8 +44,12 @@ from megatron.bridge.models.conversion.param_mapping import (
     RowParallelMapping,
 )
 from megatron.bridge.models.deepseek import (
-    DeepSeekV2Bridge,
     DeepSeekV3Bridge,
+)
+from megatron.bridge.models.diffusion_gemma import (
+    DiffusionGemmaBridge,
+    DiffusionGemmaModel,
+    DiffusionGemmaModelProvider,
 )
 from megatron.bridge.models.ernie import (
     Ernie45Bridge,
@@ -57,9 +76,7 @@ from megatron.bridge.models.falcon_h1 import (
     FalconH1ModelProvider,
 )
 from megatron.bridge.models.gemma import (
-    Gemma2ModelProvider,
     Gemma3ModelProvider,
-    GemmaModelProvider,
 )
 from megatron.bridge.models.gemma_vl import (
     Gemma3VLBridge,
@@ -105,10 +122,6 @@ from megatron.bridge.models.kimi_vl import (
 from megatron.bridge.models.llama import (
     LlamaBridge,
 )
-from megatron.bridge.models.llama_nemotron import (
-    LlamaNemotronBridge,
-    LlamaNemotronHeterogeneousProvider,
-)
 from megatron.bridge.models.mamba.mamba_provider import MambaModelProvider
 from megatron.bridge.models.mimo.mimo_bridge import MimoBridge
 from megatron.bridge.models.mimo_v2_flash import (
@@ -137,17 +150,14 @@ from megatron.bridge.models.muse_glimmer import (
     MuseGlimmerModelBuilder,
     MuseGlimmerModelConfig,
 )
-from megatron.bridge.models.nemotron import (
-    NemotronBridge,
-)
 from megatron.bridge.models.nemotron_omni import (
+    Nemotron35SuperVLBridge,
     NemotronOmniBridge,
     NemotronOmniModel,
 )
 from megatron.bridge.models.nemotron_vl import (
     NemotronVLBridge,
     NemotronVLModel,
-    NemotronVLModelProvider,
 )
 from megatron.bridge.models.nemotronh import (
     NemotronHBridge,
@@ -218,8 +228,8 @@ __all__ = [
     "RowParallelMapping",
     "AutoMapping",
     "BailingMoeV2Bridge",
+    "BertModelProvider",
     # DeepSeek Models
-    "DeepSeekV2Bridge",
     "DeepSeekV3Bridge",
     # ERNIE Text-Only Models
     "Ernie45Bridge",
@@ -231,8 +241,6 @@ __all__ = [
     "FalconH1Bridge",
     "FalconH1ModelProvider",
     "Gemma3ModelProvider",
-    "GemmaModelProvider",
-    "Gemma2ModelProvider",
     "GLM45Bridge",
     "GLM47FlashBridge",
     "GLM5Bridge",
@@ -252,8 +260,6 @@ __all__ = [
     "KimiK25VLBridge",
     "KimiK25VLModelProvider",
     "LlamaBridge",
-    "LlamaNemotronHeterogeneousProvider",
-    "LlamaNemotronBridge",
     "MistralModelProvider",
     # Ministral 3 Models
     "Ministral3Bridge",
@@ -277,7 +283,6 @@ __all__ = [
     "MiMoV2FlashBridge",
     "MiMoV2FlashModelProvider",
     # Nemotron Models
-    "NemotronBridge",
     # Audio-Language Models
     "Qwen2AudioBridge",
     "Qwen2AudioModel",
@@ -304,11 +309,14 @@ __all__ = [
     "Gemma4VLBridge",
     "Gemma4VLModel",
     "Gemma4VLModelProvider",
+    "DiffusionGemmaBridge",
+    "DiffusionGemmaModel",
+    "DiffusionGemmaModelProvider",
     "NemotronVLModel",
     "NemotronVLBridge",
-    "NemotronVLModelProvider",
     "NemotronOmniBridge",
     "NemotronOmniModel",
+    "Nemotron35SuperVLBridge",
     # ASR Models
     "Qwen3ASRBridge",
     "Qwen3ASRModel",
@@ -333,4 +341,4 @@ __all__ = [
     "Exaone45ModelProvider",
     "ExaoneMoeBridge",
     "ExaoneMoeModelProvider",
-]
+] + _BAGEL_EXPORTS

@@ -496,10 +496,11 @@ def test_library_only_canonical_name_applies_runtime_environment_without_restart
     handles.recipe_runner.load_forward_step.assert_called_once_with("llm_step", mode="pretrain")
 
 
-def test_library_recipe_bootstraps_unset_import_time_environment(monkeypatch):
+@pytest.mark.parametrize("env_name", ["NVTE_CPU_OFFLOAD_V1", "NVTE_CUTEDSL_FUSED_GROUPED_MLP"])
+def test_library_recipe_bootstraps_unset_import_time_environment(monkeypatch, env_name):
     module, handles = _load_module()
-    monkeypatch.delenv("NVTE_CPU_OFFLOAD_V1", raising=False)
-    config = SimpleNamespace(env_vars={"NVTE_CPU_OFFLOAD_V1": 1})
+    monkeypatch.delenv(env_name, raising=False)
+    config = SimpleNamespace(env_vars={env_name: 1})
     handles.recipe_runner.load_recipe.return_value = config
 
     module.main(["--recipe", "deepseek_v4_flash_pretrain_config", "--mode", "pretrain"])
@@ -511,10 +512,11 @@ def test_library_recipe_bootstraps_unset_import_time_environment(monkeypatch):
     handles.recipe_runner.apply_runtime_environment.assert_not_called()
 
 
-def test_library_recipe_preserves_explicit_import_time_environment(monkeypatch):
+@pytest.mark.parametrize("env_name", ["NVTE_CPU_OFFLOAD_V1", "NVTE_CUTEDSL_FUSED_GROUPED_MLP"])
+def test_library_recipe_preserves_explicit_import_time_environment(monkeypatch, env_name):
     module, handles = _load_module()
-    monkeypatch.setenv("NVTE_CPU_OFFLOAD_V1", "0")
-    config = SimpleNamespace(env_vars={"NVTE_CPU_OFFLOAD_V1": 1})
+    monkeypatch.setenv(env_name, "0")
+    config = SimpleNamespace(env_vars={env_name: 1})
     handles.recipe_runner.load_recipe.return_value = config
 
     module.main(["--recipe", "deepseek_v4_flash_pretrain_config", "--mode", "pretrain"])
@@ -571,6 +573,63 @@ def test_benchmark_dry_run_accepts_config_overrides(monkeypatch):
     )
 
 
+def test_benchmark_ep_override_updates_hybridep_topology_environment(monkeypatch):
+    """The exact-recipe launcher must keep HybridEP environment aligned with EP."""
+    module, handles = _load_module()
+    monkeypatch.setenv("WORLD_SIZE", "256")
+    config = SimpleNamespace(
+        env_vars={
+            "NUM_OF_HYBRID_EP_RANKS_PER_NVLINK_DOMAIN": 32,
+            "NVLINK_DOMAIN_SIZE": 72,
+            "USE_MNNVL": 1,
+        },
+        optimizer=SimpleNamespace(optimizer="adam", use_precision_aware_optimizer=False),
+        model=SimpleNamespace(
+            tensor_model_parallel_size=1,
+            pipeline_model_parallel_size=4,
+            context_parallel_size=1,
+            expert_model_parallel_size=32,
+            expert_tensor_parallel_size=1,
+            moe_flex_dispatcher_backend="hybridep",
+        ),
+        train=SimpleNamespace(global_batch_size=2048),
+        dataset=SimpleNamespace(),
+    )
+    handles.recipe_runner.load_recipe.return_value = config
+
+    def apply_overrides(recipe, overrides):
+        assert "model.expert_model_parallel_size=64" in overrides
+        recipe.model.expert_model_parallel_size = 64
+        return recipe
+
+    handles.recipe_runner.apply_cli_overrides.side_effect = apply_overrides
+    environment_module = types.ModuleType("megatron.bridge.perf_recipes.environment")
+    environment_module.HYBRID_EP_ENV_NAMES = {
+        "NUM_OF_HYBRID_EP_RANKS_PER_NVLINK_DOMAIN",
+        "NUM_OF_TOKENS_PER_CHUNK_COMBINE_API",
+        "NVLINK_DOMAIN_SIZE",
+        "USE_MNNVL",
+    }
+    monkeypatch.setitem(sys.modules, "megatron", _package("megatron"))
+    monkeypatch.setitem(sys.modules, "megatron.bridge", _package("megatron.bridge"))
+    monkeypatch.setitem(sys.modules, "megatron.bridge.perf_recipes", _package("megatron.bridge.perf_recipes"))
+    monkeypatch.setitem(sys.modules, "megatron.bridge.perf_recipes.environment", environment_module)
+
+    module.main(
+        [
+            "--recipe",
+            "qwen3_235b_a22b_pretrain_256gpu_vrnvl72_nvfp4_config",
+            "--mode",
+            "pretrain",
+            "--dry-run",
+            "--expert_model_parallel_size",
+            "64",
+        ]
+    )
+
+    assert config.env_vars["NUM_OF_HYBRID_EP_RANKS_PER_NVLINK_DOMAIN"] == 64
+
+
 def test_benchmark_recipe_weak_scales_noncanonical_world_size(monkeypatch):
     module, handles = _load_module()
     monkeypatch.setenv("WORLD_SIZE", "8")
@@ -589,7 +648,7 @@ def test_benchmark_recipe_weak_scales_noncanonical_world_size(monkeypatch):
     module.main(
         [
             "--recipe",
-            "nemotronh_56b_pretrain_64gpu_b300_fp8cs_config",
+            "nemotron_3_super_pretrain_64gpu_b300_fp8mx_config",
             "--mode",
             "pretrain",
         ]
@@ -625,7 +684,7 @@ def test_benchmark_recipe_weak_scales_by_data_parallel_ratio_after_topology_over
     module.main(
         [
             "--recipe",
-            "nemotronh_56b_pretrain_64gpu_b300_fp8cs_config",
+            "nemotron_3_super_pretrain_64gpu_b300_fp8mx_config",
             "--mode",
             "pretrain",
             "--tensor_model_parallel_size",
@@ -687,7 +746,7 @@ def test_benchmark_recipe_explicit_global_batch_size_disables_weak_scaling(monke
     module.main(
         [
             "--recipe",
-            "nemotronh_56b_pretrain_64gpu_b300_fp8cs_config",
+            "nemotron_3_super_pretrain_64gpu_b300_fp8mx_config",
             "--mode",
             "pretrain",
             "--global_batch_size",
@@ -715,7 +774,7 @@ def test_benchmark_recipe_rejects_world_size_incompatible_with_model_parallelism
         module.main(
             [
                 "--recipe",
-                "nemotronh_56b_pretrain_64gpu_b300_fp8cs_config",
+                "nemotron_3_super_pretrain_64gpu_b300_fp8mx_config",
                 "--mode",
                 "pretrain",
             ]
@@ -739,7 +798,7 @@ def test_benchmark_recipe_rejects_fractional_weak_scaled_global_batch_size(monke
         module.main(
             [
                 "--recipe",
-                "nemotronh_56b_pretrain_64gpu_b300_fp8cs_config",
+                "nemotron_3_super_pretrain_64gpu_b300_fp8mx_config",
                 "--mode",
                 "pretrain",
             ]
