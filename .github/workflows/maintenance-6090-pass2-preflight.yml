@@ -56,6 +56,7 @@ jobs:
         id: native
         run: |
           set -o pipefail
+          native_started=$(date +%s)
           exec 3>&1
           (
             tick=0
@@ -64,11 +65,12 @@ jobs:
               date -u
               docker stats --no-stream merge-preflight
               docker exec merge-preflight bash -lc 'cat /sys/fs/cgroup/memory.events; free -m; if test -f /opt/te-44f31bbe-h100-build/.ninja_log; then wc -l /opt/te-44f31bbe-h100-build/.ninja_log; tail -3 /opt/te-44f31bbe-h100-build/.ninja_log; fi; ps -eo pid,rss,etime,args --sort=-rss | head -8'
-              if ((tick % 10 == 0)); then
+              if ((tick % 5 == 0)); then
                 # shellcheck disable=SC2016 # Journal variables expand in the container's shell.
-                snapshot=$(docker exec merge-preflight sh -c 'journal=/opt/te-44f31bbe-h100-build/.ninja_log; count=not-started; if test -f "$journal"; then count=$(($(wc -l < "$journal") - 1)); fi; printf "common_completed=%s; " "$count"; tr "\n" ";" < /sys/fs/cgroup/memory.events')
+                snapshot=$(docker exec merge-preflight sh -c 'journal=/opt/te-44f31bbe-h100-build/.ninja_log; count=not-started; if test -f "$journal"; then count=$(tail -n +2 "$journal" | cut -f4 | sort -u | wc -l); fi; available_kib=$(grep MemAvailable /proc/meminfo | tr -s " " | cut -d " " -f2); printf "common_completed=%s; available_ram_kib=%s; " "$count" "$available_kib"; tr "\n" ";" < /sys/fs/cgroup/memory.events')
                 resources=$(docker stats --no-stream --format '{{.CPUPerc}} CPU; {{.MemUsage}} RAM' merge-preflight)
-                printf '::notice title=Native build progress (%s minutes)::%s %s\n' "$tick" "$snapshot" "$resources" >&3
+                elapsed_s=$(( $(date +%s) - native_started ))
+                printf '::notice title=Native build progress::elapsed_seconds=%s; %s %s\n' "$elapsed_s" "$snapshot" "$resources" >&3
               fi
             done
           ) > "$RUNNER_TEMP/preflight-evidence/native-progress.log" 2>&1 &
@@ -76,12 +78,12 @@ jobs:
           trap 'kill "$monitor_pid" 2>/dev/null || true' EXIT
           # shellcheck disable=SC2016 # The inner Bash expands CUDA variables inside the container.
           timeout 105m docker exec -e UV_PROJECT_ENVIRONMENT=/opt/venv -e UV_CONCURRENT_BUILDS=1 \
-            -e MAX_JOBS=2 -e NVTE_BUILD_MAX_JOBS=2 -e NVTE_BUILD_THREADS_PER_JOB=1 \
+            -e MAX_JOBS=2 -e NVTE_BUILD_MAX_JOBS=2 -e NVTE_BUILD_THREADS_PER_JOB=1 -e CMAKE_BUILD_PARALLEL_LEVEL=2 \
             -e NVTE_CUDA_ARCHS=90 -e NVTE_CMAKE_BUILD_DIR=/opt/te-44f31bbe-h100-build \
             -e FLASH_MLA_DISABLE_SM90=1 -e NVCC_THREADS=1 \
             -e 'CFLAGS=-I/usr/local/cuda/include/cccl -DNDEBUG' \
             -e 'CXXFLAGS=-I/usr/local/cuda/include/cccl -DNDEBUG' merge-preflight \
-            bash -lc 'export TMS_CUDA_MAJOR="$(/usr/local/cuda/bin/nvcc --version | sed -n "s/.*release \([0-9][0-9]*\).*/\1/p" | head -1)"; test -n "$TMS_CUDA_MAJOR"; uv sync --locked --group test --group dev -v' \
+            bash -lc 'export CMAKE_BUILD_PARALLEL_LEVEL=2; test "$MAX_JOBS" = 2; test "$NVTE_BUILD_MAX_JOBS" = 2; test "$NVTE_BUILD_THREADS_PER_JOB" = 1; printf "MAX_JOBS=%s NVTE_BUILD_MAX_JOBS=%s NVTE_BUILD_THREADS_PER_JOB=%s CMAKE_BUILD_PARALLEL_LEVEL=%s\n" "$MAX_JOBS" "$NVTE_BUILD_MAX_JOBS" "$NVTE_BUILD_THREADS_PER_JOB" "$CMAKE_BUILD_PARALLEL_LEVEL"; export TMS_CUDA_MAJOR="$(/usr/local/cuda/bin/nvcc --version | sed -n "s/.*release \([0-9][0-9]*\).*/\1/p" | head -1)"; test -n "$TMS_CUDA_MAJOR"; uv sync --locked --group test --group dev -v' \
             2>&1 | tee "$RUNNER_TEMP/preflight-evidence/native-sync.log"
       - name: Actual focused candidate configuration tests
         if: ${{ !cancelled() && steps.native.outcome == 'success' }}
