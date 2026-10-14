@@ -37,6 +37,7 @@ jobs:
             -v "$GITHUB_WORKSPACE:/opt/Megatron-Bridge" -w /opt/Megatron-Bridge \
             nvcr.io/nvidia/pytorch@sha256:f71fd67f6d71f685e0bd08ce6c8df48807624cc5d48886370d3471bc4f89d81d sleep infinity
           docker exec merge-preflight bash -lc 'curl -LsSf https://astral.sh/uv/0.7.2/install.sh | sh && install -m 0755 /root/.local/bin/uv /usr/local/bin/uv && uv venv /opt/venv --system-site-packages'
+          docker exec merge-preflight git config --global --add safe.directory /opt/Megatron-Bridge
       - name: Full repository pre-commit checks
         run: |
           docker exec merge-preflight bash -lc 'uv run --no-project --with pre-commit==3.6.0 pre-commit run --all-files'
