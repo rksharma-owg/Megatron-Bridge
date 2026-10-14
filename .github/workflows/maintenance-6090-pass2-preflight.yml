@@ -1,6 +1,6 @@
 # Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-name: MoE Hopper optimized native validation (fork only)
+name: MoE Hopper recipes native validation (fork only)
 on:
   push:
     branches: [codex/megatron-6090-pass2-preflight]
@@ -11,19 +11,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 135
     env:
-      CANDIDATE_SHA: 8c913e4ed6e81cc1a3e7cbcb1f0e5252f28b230d
+      CANDIDATE_SHA: 54513b66dd33570fd79fb2ada2d4bfcaab7a6c37
+      MERGE_PARENT_SHA: 8c913e4ed6e81cc1a3e7cbcb1f0e5252f28b230d
       BASELINE_SHA: b53e66c47b9704dd16ce399865bea4f4f004e53b
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: 8c913e4ed6e81cc1a3e7cbcb1f0e5252f28b230d
-          fetch-depth: 2
+          ref: 54513b66dd33570fd79fb2ada2d4bfcaab7a6c37
+          fetch-depth: 3
           submodules: recursive
           persist-credentials: false
       - name: Verify exact candidate, baseline, locked sources and resources
         run: |
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
-          test "$(git rev-parse HEAD^2)" = "$BASELINE_SHA"
+          test "$(git rev-parse HEAD^1)" = "$MERGE_PARENT_SHA"
+          test "$(git rev-parse HEAD^1^2)" = "$BASELINE_SHA"
           git diff --exit-code "$BASELINE_SHA" -- uv.lock pyproject.toml docker/Dockerfile.ci
           git submodule status
           git worktree add --detach "$RUNNER_TEMP/megatron-baseline" "$BASELINE_SHA"
@@ -83,8 +85,23 @@ jobs:
             -e FLASH_MLA_DISABLE_SM90=1 -e NVCC_THREADS=1 \
             -e 'CFLAGS=-I/usr/local/cuda/include/cccl -DNDEBUG' \
             -e 'CXXFLAGS=-I/usr/local/cuda/include/cccl -DNDEBUG' merge-preflight \
-            bash -lc 'export CMAKE_BUILD_PARALLEL_LEVEL=2; test "$MAX_JOBS" = 2; test "$NVTE_BUILD_MAX_JOBS" = 2; test "$NVTE_BUILD_THREADS_PER_JOB" = 1; printf "MAX_JOBS=%s NVTE_BUILD_MAX_JOBS=%s NVTE_BUILD_THREADS_PER_JOB=%s CMAKE_BUILD_PARALLEL_LEVEL=%s\n" "$MAX_JOBS" "$NVTE_BUILD_MAX_JOBS" "$NVTE_BUILD_THREADS_PER_JOB" "$CMAKE_BUILD_PARALLEL_LEVEL"; export TMS_CUDA_MAJOR="$(/usr/local/cuda/bin/nvcc --version | sed -n "s/.*release \([0-9][0-9]*\).*/\1/p" | head -1)"; test -n "$TMS_CUDA_MAJOR"; uv sync --locked --group test --group dev -v' \
+            bash -lc 'export CMAKE_BUILD_PARALLEL_LEVEL=2; test "$MAX_JOBS" = 2; test "$NVTE_BUILD_MAX_JOBS" = 2; test "$NVTE_BUILD_THREADS_PER_JOB" = 1; printf "MAX_JOBS=%s NVTE_BUILD_MAX_JOBS=%s NVTE_BUILD_THREADS_PER_JOB=%s CMAKE_BUILD_PARALLEL_LEVEL=%s\n" "$MAX_JOBS" "$NVTE_BUILD_MAX_JOBS" "$NVTE_BUILD_THREADS_PER_JOB" "$CMAKE_BUILD_PARALLEL_LEVEL"; export TMS_CUDA_MAJOR="$(/usr/local/cuda/bin/nvcc --version | sed -n "s/.*release \([0-9][0-9]*\).*/\1/p" | head -1)"; test -n "$TMS_CUDA_MAJOR"; uv sync --locked --extra recipes --group test --group dev -v' \
             2>&1 | tee "$RUNNER_TEMP/preflight-evidence/native-sync.log"
+      - name: Verify real locked recipes dependency
+        if: ${{ !cancelled() && steps.native.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          docker exec -i -e UV_PROJECT_ENVIRONMENT=/opt/venv merge-preflight \
+            bash -lc 'uv run --no-sync python -' 2>&1 <<'CHECK' | tee "$RUNNER_TEMP/preflight-evidence/recipes-dependency.log"
+          import importlib.metadata as metadata
+          import logging
+          import pathlib
+          import nemo_run
+          from nemo_run.config import get_nemorun_home
+          assert metadata.version("nemo-run") == "0.4.0"
+          assert pathlib.Path(nemo_run.__file__).is_relative_to("/opt/venv")
+          logging.warning("Verified real nemo-run %s at %s", metadata.version("nemo-run"), nemo_run.__file__)
+          CHECK
       - name: Actual focused candidate configuration tests
         if: ${{ !cancelled() && steps.native.outcome == 'success' }}
         run: |
@@ -156,7 +173,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
-          name: megatron6090-optimized-native-validation
+          name: megatron6090-recipes-native-validation
           path: ${{ runner.temp }}/preflight-evidence
           retention-days: 7
       - name: Stop only this job's owned container
