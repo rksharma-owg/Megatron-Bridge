@@ -106,7 +106,7 @@ def test_nccl_ub_flag_in_recipe_runner(tmp_path, flag, expected):
     assert updated.ddp.fsdp_manual_registration is expected
 
 
-def test_moe_a2a_overlap_false_disables_overlap(tmp_path):
+def test_moe_a2a_overlap_false_disables_overlap(tmp_path: Path) -> None:
     recipe = vanilla_gpt_pretrain_1gpu_h100_bf16_config()
     if recipe.comm_overlap is None:
         recipe.comm_overlap = CommOverlapConfig(tp_comm_overlap=False)
@@ -118,7 +118,7 @@ def test_moe_a2a_overlap_false_disables_overlap(tmp_path):
     assert updated.comm_overlap.overlap_moe_expert_parallel_comm is False
 
 
-def test_moe_a2a_overlap_true_enables_overlap(tmp_path):
+def test_moe_a2a_overlap_true_enables_overlap(tmp_path: Path) -> None:
     recipe = vanilla_gpt_pretrain_1gpu_h100_bf16_config()
     recipe.comm_overlap = None
 
@@ -130,7 +130,7 @@ def test_moe_a2a_overlap_true_enables_overlap(tmp_path):
     assert updated.model.moe_shared_expert_overlap is False
 
 
-def test_moe_a2a_overlap_omitted_preserves_recipe_value(tmp_path):
+def test_moe_a2a_overlap_omitted_preserves_recipe_value(tmp_path: Path) -> None:
     recipe = vanilla_gpt_pretrain_1gpu_h100_bf16_config()
     if recipe.comm_overlap is None:
         recipe.comm_overlap = CommOverlapConfig(tp_comm_overlap=False)
