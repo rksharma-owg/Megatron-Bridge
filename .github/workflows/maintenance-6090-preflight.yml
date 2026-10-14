@@ -45,7 +45,8 @@ jobs:
       - name: Install locked test environment using documented CUDA build settings
         run: |
           docker exec -e UV_PROJECT_ENVIRONMENT=/opt/venv -e UV_CONCURRENT_BUILDS=2 \
-            -e MAX_JOBS=2 -e NVTE_BUILD_MAX_JOBS=2 -e NVTE_BUILD_THREADS_PER_JOB=1 \
+            -e MAX_JOBS=2 -e NVTE_BUILD_MAX_JOBS=1 -e NVTE_BUILD_THREADS_PER_JOB=2 \
+            -e 'NVTE_CUDA_ARCHS=90;100' \
             -e FLASH_MLA_DISABLE_SM90=1 -e NVCC_THREADS=1 \
             -e 'CFLAGS=-I/usr/local/cuda/include/cccl -DNDEBUG' \
             -e 'CXXFLAGS=-I/usr/local/cuda/include/cccl -DNDEBUG' merge-preflight \
