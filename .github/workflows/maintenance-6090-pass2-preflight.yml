@@ -113,7 +113,7 @@ jobs:
         if: ${{ !cancelled() && steps.native.outcome == 'success' }}
         run: |
           set -o pipefail
-          docker exec -e UV_PROJECT_ENVIRONMENT=/opt/venv merge-preflight \
+          docker exec -e UV_PROJECT_ENVIRONMENT=/opt/venv -e MYPYPATH=/opt/Megatron-Bridge/src merge-preflight \
             bash -lc 'uv run --no-sync mypy --strict scripts/performance/utils/overrides.py tests/unit_tests/scripts/performance/test_user_overrides.py' \
             2>&1 | tee "$RUNNER_TEMP/preflight-evidence/candidate-mypy.log"
       - name: Untouched baseline configuration tests in same native environment
@@ -131,7 +131,8 @@ jobs:
         run: |
           set -o pipefail
           docker exec -w /opt/baseline -e UV_PROJECT_ENVIRONMENT=/opt/venv \
-            -e PYTHONPATH=/opt/baseline/src:/opt/Megatron-Bridge/3rdparty/Megatron-LM merge-preflight \
+            -e PYTHONPATH=/opt/baseline/src:/opt/Megatron-Bridge/3rdparty/Megatron-LM \
+            -e MYPYPATH=/opt/baseline/src merge-preflight \
             bash -lc 'uv run --no-sync mypy --strict scripts/performance/utils/overrides.py tests/unit_tests/scripts/performance/test_user_overrides.py' \
             2>&1 | tee "$RUNNER_TEMP/preflight-evidence/baseline-mypy.log"
       - name: Verify regression fails on unchanged baseline production code
