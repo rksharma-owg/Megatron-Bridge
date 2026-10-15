@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         source:
-          - 54513b66dd33570fd79fb2ada2d4bfcaab7a6c37
+          - 1d495500a3cff5f9e05cc3e7c27b7fda4ee1a101
           - b53e66c47b9704dd16ce399865bea4f4f004e53b
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
