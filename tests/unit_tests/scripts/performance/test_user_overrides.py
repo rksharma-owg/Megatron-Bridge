@@ -28,6 +28,7 @@ from argument_parser import parse_cli_args
 from utils.overrides import apply_one_gpu_per_rank_device_mapping, set_user_overrides
 from utils.utils import apply_argparse_overrides, finalize_config_overrides
 
+from megatron.bridge.models.gpt_provider import GPTModelProvider
 from megatron.bridge.recipes.gpt.h100.vanilla_gpt import vanilla_gpt_pretrain_1gpu_h100_bf16_config
 from megatron.bridge.training.comm_overlap import CommOverlapConfig
 
@@ -115,6 +116,7 @@ def test_moe_a2a_overlap_false_disables_overlap(tmp_path: Path) -> None:
 
     updated = set_user_overrides(recipe, _parse_args(tmp_path, "--moe_a2a_overlap", "false"))
 
+    assert updated.comm_overlap is not None
     assert updated.comm_overlap.overlap_moe_expert_parallel_comm is False
 
 
@@ -127,6 +129,7 @@ def test_moe_a2a_overlap_true_enables_overlap(tmp_path: Path) -> None:
     assert updated.comm_overlap is not None
     assert updated.comm_overlap.overlap_moe_expert_parallel_comm is True
     assert updated.comm_overlap.delay_wgrad_compute is True
+    assert isinstance(updated.model, GPTModelProvider)
     assert updated.model.moe_shared_expert_overlap is False
 
 
@@ -138,4 +141,5 @@ def test_moe_a2a_overlap_omitted_preserves_recipe_value(tmp_path: Path) -> None:
 
     updated = set_user_overrides(recipe, _parse_args(tmp_path))
 
+    assert updated.comm_overlap is not None
     assert updated.comm_overlap.overlap_moe_expert_parallel_comm is True
